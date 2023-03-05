@@ -173,8 +173,41 @@
     (coq-lsp-prove-till-cursor))
   (setq last-post-command-position (point)))
 
+(defun coq-lsp--pp-name-list (namelist)
+  (substring (mapconcat (lambda (h) (format "%s, " h)) namelist "") 0 -2))
+
+(defun coq-lsp--pp-hyp (hyp)
+  (let ((hyp-names (plist-get hyp :names)))
+    (let ((hyp-name (coq-lsp--pp-name-list hyp-names))
+          (hyp-def (plist-get hyp :def))
+          (hyp-ty (plist-get hyp :ty)))
+      (cond (hyp-def (format "%s = %s : %s\n" hyp-name hyp-def hyp-ty))
+            (t (format "%s : %s\n" hyp-name hyp-ty))
+            ))))
+
+(defun coq-lsp--pp-hyps (goals)
+  (let ((goals (plist-get goals :goals)))
+    (if (> (seq-length goals) 0)
+        (let ((hyps (plist-get (seq-elt goals 0) :hyps)))
+          (let ((hyps (seq-map 'coq-lsp--pp-hyp hyps)))
+            (mapconcat (lambda (h) (format "%s" h)) hyps "")
+            )))))
+
+(defun coq-lsp--pp-goal (goals)
+  (let ((goals (plist-get goals :goals)))
+    (if (> (seq-length goals) 0)
+        (plist-get (seq-elt goals 0) :ty))))
+
 (defun coq-lsp--process-goal-info (textDocument position goals messages err)
-  (coq-lsp--update-buffer-with-text goals-buffer-name (format "document: %s\nposition: %s\ngoals: %s\nmessages: %s\nerror: %s\n" textDocument position goals messages err)))
+  (coq-lsp--update-buffer-with-text goals-buffer-name (format "document:
+  %s\nposition: %s\ngoals: %s\nmessages: %s\nerror: %s\n\n
+State:\n
+%s
+===========================\n
+%s\n" textDocument position goals messages err
+  (coq-lsp--pp-hyps goals)
+  (coq-lsp--pp-goal goals)
+  )))
 
 (defun coq-lsp--process-doc-info (spans completed)
   (coq-lsp--append-buffer-with-text info-buffer-name (format "spans: %s\ncompleted: %s\n\n" spans completed)))
