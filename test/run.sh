@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-emacs -q -l init.el ./test.v
+emacs -q --debug-init -l init.el ./test.v

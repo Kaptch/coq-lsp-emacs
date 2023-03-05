@@ -9,8 +9,10 @@
 (eval-when-compile
   (require 'rx)
   (require 'eglot)
-  (require 'cl-lib))
-
+  (require 'cl-lib)
+  )
+;; (require 'coq-mode)
+(load-file "../coq-mode.el")
 ;; Mode description
 
 (defgroup coq-lsp nil
@@ -20,13 +22,28 @@
 (defconst goals-buffer-name "*Goals*")
 (defconst info-buffer-name "*Info*")
 
-(defvar coq-mode-abbrev-table nil
-  "Abbreviation table used in `coq-mode' buffers.")
+;; (defvar coq-mode-abbrev-table nil
+;;   "Abbreviation table used in `coq-mode' buffers.")
 
-(define-abbrev-table 'coq-mode-abbrev-table
+;; (define-abbrev-table 'coq-mode-abbrev-table
+;;   '())
+
+;; (defvar coq-mode-map
+;;   (let ((map (make-sparse-keymap)))
+;;     (define-key map (kbd "C-c v") #'coq-lsp-refresh-window-layout)
+;;     (define-key map (kbd "C-c C-k") #'eglot-shutdown)
+;;     (define-key map (kbd "C-c c") #'coq-lsp-prove-till-cursor)
+;;     (define-key map (kbd "C-c s") #'coq-lsp-get-doc)
+;;     (define-key map (kbd "C-c d") #'coq-lsp-save-vo)
+;;     map))
+
+(defvar proof-mode-abbrev-table nil
+  "Abbreviation table used in `proof-mode' buffers.")
+
+(define-abbrev-table 'proof-mode-abbrev-table
   '())
 
-(defvar coq-mode-map
+(defvar proof-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c v") #'coq-lsp-refresh-window-layout)
     (define-key map (kbd "C-c C-k") #'eglot-shutdown)
@@ -35,13 +52,33 @@
     (define-key map (kbd "C-c d") #'coq-lsp-save-vo)
     map))
 
-(define-derived-mode coq-mode prog-mode "coq"
+(add-hook 'eglot-managed-mode-hook
+          (lambda ()
+            ;; Show flymake diagnostics first.
+            (setq eldoc-documentation-functions
+                  (cons #'flymake-eldoc-function
+                        (remove #'flymake-eldoc-function eldoc-documentation-functions)))
+            ;; Show all eldoc feedback.
+            (setq eldoc-documentation-strategy #'eldoc-documentation-compose)))
+
+(define-derived-mode proof-mode prog-mode "Proof"
   "Major mode for coq files."
   :group 'coq-lsp
   (set 'compilation-mode-font-lock-keywords '())
   (set (make-local-variable 'lisp-indent-function)
        'common-lisp-indent-function)
   :abbrev-table coq-mode-abbrev-table)
+
+;; (define-derived-mode coq-mode prog-mode "coq"
+;;   "Major mode for coq files."
+;;   :group 'coq-lsp
+;;   (set 'compilation-mode-font-lock-keywords '())
+;;   (set (make-local-variable 'lisp-indent-function)
+;;        'common-lisp-indent-function)
+;;   :abbrev-table coq-mode-abbrev-table)
+
+(defvar proof-mode-status nil)
+(defvar proof-mode-electric-terminator-mode nil)
 
 ;; Additional requests
 
@@ -152,7 +189,8 @@
     (erase-buffer)
     (insert text)
     (font-lock-fontify-buffer)
-    (read-only-mode 1)))
+    (read-only-mode 1)
+    (set-buffer-modified-p nil)))
 
 (defun coq-lsp--append-buffer-with-text (buffer-name text)
   "Create a new buffer or append an existing buffer named BUFFER-NAME with formatted TEXT."
@@ -160,7 +198,8 @@
     (read-only-mode -1)
     (insert text)
     (font-lock-fontify-buffer)
-    (read-only-mode 1)))
+    (read-only-mode 1)
+    (set-buffer-modified-p nil)))
 
 (defun get-current-window ()
   "Return the current window."
@@ -184,6 +223,31 @@
   (interactive)
   (eglot--signal-coq/savevo))
 
+(defun coq-lsp--safe-split-window-vertically ()
+  (if (<= (window-height) (* 2 window-min-height))
+      (enlarge-window (+ 3 (* 2 window-min-height))))
+  (split-window-vertically))
+
+(defun coq-lsp--split-window-horizontally-1/3 ()
+  "Split the current window horizontally, with the top part taking up 1/3 of the space."
+  (let ((split-height-threshold nil))
+    (split-window-below (/ (window-height) 3)))
+  (other-window 1))
+
+(defun coq-lsp--split-window-vertically-1/3 ()
+  "Split the current window vertically, with the left part taking up 1/3 of the space."
+  (interactive)
+  (let ((split-width-threshold nil))
+    (split-window-right (/ (window-width) 3)))
+  (other-window 1))
+
+(defun coq-lsp--split-window-vertically-2/3 ()
+  "Split the current window vertically, with the left part taking up 2/3 of the space."
+  (interactive)
+  (let ((split-width-threshold nil))
+    (split-window-right (* (/ (window-width) 3) 2)))
+  (other-window 1))
+
 (defun coq-lsp-refresh-window-layout ()
   "Create a 3-window layout with left window occupying half the screen, and two right windows stacked one on top of the other, with the two right windows read-only."
   (interactive)
@@ -194,20 +258,22 @@
     (with-current-buffer info-buffer
       (read-only-mode 1))
     (delete-other-windows)
-    (split-window-horizontally (round (* 0.5 (frame-width))))
-    (other-window 1)
+    ;; (split-window-horizontally (round (* 0.5 (frame-width))))
+    ;; (other-window 1)
+    (coq-lsp--split-window-vertically-2/3)
     (set-window-buffer (get-current-window) goals-buffer)
     (with-selected-window (get-current-window)
       (set-window-dedicated-p (selected-window) t))
-    (split-window-vertically)
+    ;; (split-window-vertically)
+    (coq-lsp--safe-split-window-vertically)
     (other-window 1)
     (set-window-buffer (get-current-window) info-buffer)
     (with-selected-window (get-current-window)
       (set-window-dedicated-p (selected-window) t))
     (other-window 1)))
 
-(add-hook 'post-command-hook #'coq-lsp-prove-till-cursor-if-moved-post-command)
-(add-hook 'coq-mode-hook #'coq-lsp-prove-till-cursor-if-moved-post-command)
+;; (add-hook 'post-command-hook #'coq-lsp-prove-till-cursor-if-moved-post-command)
+;; (add-hook 'coq-mode-hook #'coq-lsp-prove-till-cursor-if-moved-post-command)
 
 (add-to-list 'auto-mode-alist '("\\.v" . coq-mode))
 
