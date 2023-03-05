@@ -1,4 +1,8 @@
 - Goal buffer formatting
+  + [X] Hypothesis and goal
+  + [ ] Multiples goal/sub-goal ; cf the stack
+  + [ ] Highlighting / faces
+  + [ ] Newline if hyp/goal goes out of the windows
 - Document processing status
 - Dot terminator for Coq commands
 - Packaging
