@@ -95,7 +95,8 @@
                     (goals (plist-get response :goals))
                     (messages (plist-get response :messages))
                     (err (plist-get response :error)))
-                (coq-lsp--process-goal-info textDocumet position goals messages err)))))))
+                 (coq-lsp--process-goal-info goals)))))))
+                ;;(coq-lsp--process-goal-debug textDocumet position goals messages err)))))))
 
 (defun eglot--signal-coq/document ()
   (let ((server (eglot-current-server))
@@ -185,29 +186,80 @@
             (t (format "%s : %s\n" hyp-name hyp-ty))
             ))))
 
+;; We know that (len goals) > 0, because otherwise the function is not called
 (defun coq-lsp--pp-hyps (goals)
-  (let ((goals (plist-get goals :goals)))
-    (if (> (seq-length goals) 0)
-        (let ((hyps (plist-get (seq-elt goals 0) :hyps)))
-          (let ((hyps (seq-map 'coq-lsp--pp-hyp hyps)))
-            (mapconcat (lambda (h) (format "%s" h)) hyps "")
-            )))))
+  (let ((hyps (plist-get (seq-elt goals 0) :hyps)))
+    (let ((hyps (seq-map 'coq-lsp--pp-hyp hyps)))
+      (mapconcat (lambda (h) (format "%s" h)) hyps "")
+      )
+    )
+  )
 
-(defun coq-lsp--pp-goal (goals)
-  (let ((goals (plist-get goals :goals)))
-    (if (> (seq-length goals) 0)
-        (plist-get (seq-elt goals 0) :ty))))
 
-(defun coq-lsp--process-goal-info (textDocument position goals messages err)
-  (coq-lsp--update-buffer-with-text goals-buffer-name (format "document:
-  %s\nposition: %s\ngoals: %s\nmessages: %s\nerror: %s\n\n
-State:\n
+;; We know that (len goals) > 0, because otherwise the function is not called
+(defun coq-lsp--pp-main-goal (goals)
+      (plist-get (seq-elt goals 0) :ty))
+
+(defun coq-lsp--pp-sub-goal (goal ngoal)
+  (format "Goal %d:\n%s\n\n" ngoal goal)
+)
+(defun coq-lsp--pp-stack-subgoals (goals)
+  (if (> (seq-length goals) 1)
+      (car
+       (cl-reduce
+        (lambda (acc goal)
+          (cons (concat (car acc) (coq-lsp--pp-sub-goal goal (cdr acc)))
+                (+ 1 (cdr acc))))
+        (mapcar (lambda (g) (plist-get g :ty)) (substring goals 1))
+        :initial-value '("" . 2)
+        ))
+    ""
+    ))
+
+(defun coq-lsp--pp-goals-focus (goals)
+  (if (> (seq-length goals) 0)
+      (format
+       "Goal:\n
 %s
 ===========================\n
-%s\n" textDocument position goals messages err
-  (coq-lsp--pp-hyps goals)
-  (coq-lsp--pp-goal goals)
-  )))
+%s\n\n%s\n\n"
+       (coq-lsp--pp-hyps goals)
+       (coq-lsp--pp-main-goal goals)
+       (coq-lsp--pp-stack-subgoals goals)
+       )
+    ""
+    ))
+
+
+(defun coq-lsp--length-admitted (goals)
+  (length (plist-get goals :given_up)))
+
+(defun coq-lsp--length-shelved (goals)
+  (length (plist-get goals :shelf)))
+
+;; TODO find a way to compute the size of remaining goal, through the
+;; goals/stack, goals/goals, goals/shelf and goals/given-up
+(defun coq-lsp--length-remaining (goals)
+  0)
+(defun coq-lsp--pp-remaining-goals (goals)
+  (format "%d remaining goals (%s shelved) (%d admitted)\n"
+          (coq-lsp--length-remaining goals)
+          (coq-lsp--length-shelved goals)
+          (coq-lsp--length-admitted goals)))
+
+(defun coq-lsp--process-goal-info (goals)
+    (coq-lsp--update-buffer-with-text
+     goals-buffer-name
+     (format "%s\n\n%s" (coq-lsp--pp-remaining-goals goals) (coq-lsp--pp-goals-focus (plist-get goals :goals)))
+     )
+  )
+
+(defun coq-lsp--process-goal-debug (textDocument position goals messages err)
+  (coq-lsp--update-buffer-with-text
+   goals-buffer-name
+   (format "document: %s\nposition: %s\ngoals: %s\nmessages: %s\nerror: %s\n\n"
+          textDocument position goals messages err
+   )))
 
 (defun coq-lsp--process-doc-info (spans completed)
   (coq-lsp--append-buffer-with-text info-buffer-name (format "spans: %s\ncompleted: %s\n\n" spans completed)))
