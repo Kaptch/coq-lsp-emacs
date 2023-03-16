@@ -19,10 +19,10 @@
 
 ;;; Code:
 
-(unless (locate-library "coq-mode")
-  (add-to-list 'load-path
-               (expand-file-name
-                (file-name-directory (or load-file-name buffer-file-name)))))
+;; (unless (locate-library "coq-mode")
+;;   (add-to-list 'load-path
+;;                (expand-file-name
+;;                 (file-name-directory (or load-file-name buffer-file-name)))))
 
 ;; (if t (require 'coq nil 'noerror))
 (require 'coq-smie)

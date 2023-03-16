@@ -6,13 +6,19 @@
 
 ;;; Code:
 
+(unless (locate-library "coq-lsp")
+  (add-to-list 'load-path
+               (expand-file-name
+                (file-name-directory (or load-file-name buffer-file-name)))))
+
 (eval-when-compile
   (require 'rx)
   (require 'eglot)
   (require 'cl-lib)
+  (require 'coq-mode)
   )
-;; (require 'coq-mode)
-(load-file "../coq-mode.el")
+
+;; (load-file "../coq-mode.el")
 ;; Mode description
 
 (defgroup coq-lsp nil
