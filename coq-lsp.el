@@ -103,8 +103,10 @@
                     (err (plist-get response :error)))
                 (progn
                  (coq-lsp--process-goal-info goals)
-                (coq-lsp--process-goal-debug textDocumet position goals messages err)
                  (coq-lsp--process-info-buffer messages err)
+                ;; Uncomment the line here to print the full debug information
+                ;; in the info buffer
+                ;; (coq-lsp--debug textDocumet position goals messages err)
                   )
                 ))))))
 
@@ -303,10 +305,10 @@
    )
   )
 
-(defun coq-lsp--process-goal-debug (textDocument position goals messages err)
-  (coq-lsp--update-buffer-with-text
-   goals-buffer-name
-   (format "document: %s\nposition: %s\ngoals: %s\nmessages: %s\nerror: %s\n\n"
+(defun coq-lsp--debug (textDocument position goals messages err)
+  (coq-lsp--append-buffer-with-text
+   info-buffer-name
+   (format "\ndocument: %s\nposition: %s\ngoals: %s\nmessages: %s\nerror: %s\n\n"
           textDocument position goals messages err
    )))
 
