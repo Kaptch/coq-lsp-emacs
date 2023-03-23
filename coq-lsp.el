@@ -101,8 +101,12 @@
                     (goals (plist-get response :goals))
                     (messages (plist-get response :messages))
                     (err (plist-get response :error)))
-                 (coq-lsp--process-goal-info goals)))))))
-                ;;(coq-lsp--process-goal-debug textDocumet position goals messages err)))))))
+                (progn
+                 (coq-lsp--process-goal-info goals)
+                (coq-lsp--process-goal-debug textDocumet position goals messages err)
+                 (coq-lsp--process-info-buffer messages err)
+                  )
+                ))))))
 
 (defun eglot--signal-coq/document ()
   (let ((server (eglot-current-server))
@@ -120,7 +124,7 @@
     (if server
         (let ((response (jsonrpc-request server :coq/saveVo params)))
           (if response
-              (progn ((coq-lsp--append-buffer-with-text info-buffer-name "Couldn't compile the file!\n\n"))))))))
+              (coq-lsp--update-buffer-with-text info-buffer-name "Couldn't compile the file!\n\n"))))))
 
 ;; Additional notifications
 (cl-defmethod eglot-handle-notification
@@ -134,7 +138,9 @@
             (let ((start (plist-get (plist-get (car elem) :start) :line))
                   (end (plist-get (plist-get (car elem) :end) :line))
                   (status (cdr elem)))
-              (coq-lsp--process-notification start end status)))))))
+              ;; (coq-lsp--process-notification start end status)
+              () ;; do nothing ?
+              ))))))
 
 ;; Implementation
 
@@ -236,6 +242,15 @@
     ""
     ))
 
+(defun coq-lsp--pp-stack (goal-focus goal-stack)
+  (if (and (> (seq-length goal-stack) 0) (= (seq-length goal-focus) 0))
+      (mapcar
+       'coq-lsp--pp-stack-subgoals
+       (seq-elt goal-stack 0))
+      ;; (format "%s\n" goal-stack)
+    ""
+    )
+  )
 
 (defun coq-lsp--length-admitted (goals)
   (length (plist-get goals :given_up)))
@@ -254,10 +269,38 @@
           (coq-lsp--length-admitted goals)))
 
 (defun coq-lsp--process-goal-info (goals)
-    (coq-lsp--update-buffer-with-text
-     goals-buffer-name
-     (format "%s\n\n%s" (coq-lsp--pp-remaining-goals goals) (coq-lsp--pp-goals-focus (plist-get goals :goals)))
+  ;; update only if the goal is not nil ?
+  (if goals
+      (coq-lsp--update-buffer-with-text
+       goals-buffer-name
+       (format "%s\n\n%s%s"
+               (coq-lsp--pp-remaining-goals goals)
+               (coq-lsp--pp-goals-focus (plist-get goals :goals))
+               (coq-lsp--pp-stack (plist-get goals :goals) (plist-get goals :stack)))
+       )
+    )
+  )
+
+
+;; TODO better pretty-print of messages
+(defun coq-lsp--pp-message (messages)
+  (if (> (seq-length messages) 0)
+      (mapconcat
+       (lambda (n) (format "%s\n" (plist-get (seq-elt messages n) :text)))
+       (number-sequence 0 (- (seq-length messages) 1))
+       "")
+    ""
+    )
+  )
+
+(defun coq-lsp--process-info-buffer (messages err)
+  (coq-lsp--update-buffer-with-text
+   info-buffer-name
+   (if err
+       (format "%s\n" err)
+     (coq-lsp--pp-message messages)
      )
+   )
   )
 
 (defun coq-lsp--process-goal-debug (textDocument position goals messages err)
