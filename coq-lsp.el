@@ -183,10 +183,27 @@
 
 (make-variable-buffer-local 'last-post-command-position)
 
+(defun coq-lsp-dots-between-points (point1 point2)
+  "Check if there's at least one dot between POINT1 and POINT2."
+  (save-excursion
+    (goto-char (min point1 point2))
+    (while (and (< (point) (max point1 point2))
+                (progn
+                  (forward-char)
+                  (not (eobp)))
+                (not (search-forward "." (max point1 point2) t)))
+      nil)
+    (if (<= (point) (max point1 point2))
+        t
+      nil)))
+
 (defun coq-lsp-prove-till-cursor-if-moved-post-command ()
-  (unless (equal (point) last-post-command-position)
-    (coq-lsp-prove-till-cursor))
-  (setq last-post-command-position (point)))
+  "Check if the cursor has moved and there's a dot in between the old and new position."
+  (let ((current-pos (point)))
+    (when (and (/= current-pos last-post-command-position)
+               (coq-lsp-dots-between-points last-post-command-position current-pos))
+      (coq-lsp-prove-till-cursor)
+      (setq last-post-command-position current-pos))))
 
 (defun coq-lsp--pp-name-list (namelist)
   (substring (mapconcat (lambda (h) (format "%s, " h)) namelist "") 0 -2))
@@ -408,8 +425,7 @@
       (set-window-dedicated-p (selected-window) t))
     (other-window 1)))
 
-;; (add-hook 'post-command-hook #'coq-lsp-prove-till-cursor-if-moved-post-command)
-;; (add-hook 'coq-mode-hook #'coq-lsp-prove-till-cursor-if-moved-post-command)
+(add-hook 'post-command-hook #'coq-lsp-prove-till-cursor-if-moved-post-command)
 
 (add-to-list 'auto-mode-alist '("\\.v" . coq-mode))
 
